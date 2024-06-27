@@ -691,21 +691,86 @@
 
 
         document.querySelectorAll('.knob').forEach(knob => {
-            let isDragging = false;
-			
-            knob.addEventListener('mousedown', function(e) {
-                isDragging = true;
-                updateKnobValue(e, knob);
-            });
-            document.addEventListener('mousemove', function(e) {
-                if (isDragging) {
-                    updateKnobValue(e, knob);
-                }
-            });
-            document.addEventListener('mouseup', function() {
-                isDragging = false;
-            });
-        });
+			let isDragging = false;
+
+			const updateKnobValue = (e, knob) => {
+				e.preventDefault();
+				let clientX, clientY;
+				
+				if (e.touches) {
+					clientX = e.touches[0].clientX;
+					clientY = e.touches[0].clientY;
+				} else {
+					clientX = e.clientX;
+					clientY = e.clientY;
+				}
+
+				const rect = knob.getBoundingClientRect();
+				const centerX = rect.left + rect.width / 2;
+				const centerY = rect.top + rect.height / 2;
+				let angle = Math.atan2(clientY - centerY, clientX - centerX);
+				
+				let degree = (angle * 180 / Math.PI + 360) % 360;
+				degree = (degree + 90) % 360;
+
+				if (typeof knob.previousDegree === 'undefined') {
+					knob.previousDegree = degree;
+				}
+
+				let deltaDegree = degree - knob.previousDegree;
+
+				if (deltaDegree > 180) {
+					deltaDegree -= 360;
+				} else if (deltaDegree < -180) {
+					deltaDegree += 360;
+				}
+
+				const isClockwise = deltaDegree > 0;
+				let currentAngle = knob.angle || 0;
+
+				if (isClockwise && currentAngle < 270) {
+					currentAngle = Math.min(270, currentAngle + Math.abs(deltaDegree));
+				} else if (!isClockwise && currentAngle > 0) {
+					currentAngle = Math.max(0, currentAngle - Math.abs(deltaDegree));
+				}
+
+				knob.angle = currentAngle;
+				knob.previousDegree = degree;
+
+				const param = knob.dataset.param;
+				const value = Math.round(currentAngle / 270 * 100);
+				params[param] = value;
+
+				const valueElement = knob.nextElementSibling.querySelector('span');
+				valueElement.textContent = value;
+
+				updateSound(param);
+
+				knob.style.transform = `rotate(${currentAngle}deg)`;
+			};
+
+			knob.addEventListener('mousedown', () => isDragging = true);
+			knob.addEventListener('touchstart', (e) => {
+				isDragging = true;
+				e.preventDefault();
+			});
+
+			document.addEventListener('mousemove', (e) => {
+				if (isDragging) {
+					updateKnobValue(e, knob);
+				}
+			});
+
+			document.addEventListener('touchmove', (e) => {
+				if (isDragging) {
+					updateKnobValue(e, knob);
+				}
+			});
+
+			document.addEventListener('mouseup', () => isDragging = false);
+			document.addEventListener('touchend', () => isDragging = false);
+		});
+
 
         // Initialize knob values
         document.querySelectorAll('.knob').forEach(knob => {
