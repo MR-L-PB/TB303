@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TB-303 Synthesizer</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+			margin: 0;
+			background-color: rgba(240, 240, 240, 1);
+		}
+		.tb303 {
+			background-color: rgba(208, 208, 208, 1);
+			border: 4px solid rgba(160, 160, 160, 1);
+			border-radius: 10px;
+			padding: 20px;
+			width: 800px;
+		}
+		.display {
+			background-color: rgba(0, 0, 0, 1);
+			color: rgba(0, 255, 0, 1);
+			font-family: monospace;
+			padding: 10px;
+			margin-bottom: 20px;
+			text-align: right;
+			user-select: none;
+		}
+		.controls, .effects {
+			display: grid;
+			grid-template-columns: repeat(6, 1fr);
+			gap: 10px;
+			margin-top: 10px;
+		}
+		.knob-container {
+			text-align: center;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		.knob-label-top {
+			font-size: 12px;
+			font-weight: bold;
+			color: rgba(0, 0, 0, 1);
+			text-transform: uppercase;
+			margin-bottom: 5px;
+			user-select: none;
+		}
+		.knob {
+			width: 40px;
+			height: 40px;
+			background-color: rgba(180, 180, 180, 1.0);
+			border-radius: 50%;
+			position: relative;
+			cursor: pointer;
+			border: 5px solid rgba(120, 120, 120, 1.0);
+			box-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+		}
+		.knob::after {
+			content: '';
+			position: absolute;
+			top: 5px;
+			left: 50%;
+			width: 2px;
+			height: 14px;
+			background-color: rgba(50, 50, 50, 1);
+			transform-origin: bottom;
+		}
+		.knob-value {
+			width: 60px;
+			margin-top: 5px;
+			font-size: 12px;
+			background-color: rgba(55, 55, 55, 1.0);
+			color: rgba(0, 255, 0, 1);
+			padding: 5px 5px;
+			border-radius: 4px;
+			display: inline-block;
+			box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.95);
+			user-select: none;
+		}
+		.button {
+			background-color: rgba(64, 64, 64, 1);
+			color: rgba(255, 255, 255, 1);
+			border: none;
+			padding: 10px;
+			text-align: center;
+			cursor: pointer;
+			border-radius: 20px;
+			box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
+			position: relative;
+		}
+		.button::before {
+			content: '';
+			position: absolute;
+			top: -2px;
+			left: -2px;
+			right: -2px;
+			bottom: -2px;
+			border: 2px solid rgba(255, 255, 255, 0.3);
+			border-radius: 20px;
+		}
+		.sequencer-container {
+			margin-top: 20px;
+		}
+		#toggleSequencer {
+			margin-top: 20px;
+			margin-bottom: 10px;
+		}
+		#sequencer {
+			display: grid;
+			grid-template-columns: repeat(16, 1fr);
+			gap: 2px;
+			margin-top: 10px;
+			width: 100%;
+			height: 240px;
+		}
+		#sequencer.hidden {
+			display: none;
+		}
+		.sequencer-cell {
+			width: 100%;
+			height: 100%;
+			background-color: #333;
+			border: 1px solid #555;
+			cursor: pointer;
+		}
+		.sequencer-cell.active {
+			background-color: #0f0;
+		}
+		.sequencer-cell.current {
+		  border: 1px solid #ff0;
+		}
+		.button-container {
+			margin-top: 20px;
+			display: flex;
+			justify-content: space-between;
+		}
+		.button-container .button {
+			flex: 0 0 auto;
+			margin: 0 5px;
+			width: 100px;
+		}
+		.waveform-switch {
+			margin-top: 55px;
+			margin-left: 30px;
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+		}
+		.waveform-label {
+			font-size: 12px;
+			font-weight: bold;
+			color: rgba(0, 0, 0, 1);
+			text-transform: uppercase;
+			margin-bottom: 5px;
+			user-select: none;
+		}
+		#waveformSelect {
+			width: 60px;
+			padding: 5px;
+			background-color: rgba(55, 55, 55, 1.0);
+			color: rgba(0, 255, 0, 1);
+			border: none;
+			border-radius: 4px;
+			font-size: 12px;
+			box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.95);
+			appearance: none;
+			cursor: pointer;
+		}
+		#waveformSelect:focus {
+			outline: none;
+			box-shadow: 0 0 0 2px rgba(0, 255, 0, 0.5);
+		}
+		#waveformSelect option {
+			background-color: rgba(55, 55, 55, 1.0);
+		}
+	</style>
+</head>
+<body>
+    <div class="tb303">
+        <div class="display">TB-303 Emulator</div>
+        <div class="controls">
+            <div class="knob-container">
+                <div class="knob-label-top">TUNING</div>
+				<div class="knob" data-param="tuning"></div>
+				<div class="knob-value"><span id="tuningValue"></span></div>
+            </div>
+			<div class="knob-container">
+				<div class="knob-label-top">CUTOFF</div>
+				<div class="knob" data-param="cutoff"></div>
+				<div class="knob-value"><span id="cutoffValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">RESONANCE</div>
+				<div class="knob" data-param="resonance"></div>
+				<div class="knob-value"><span id="resonanceValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">ENV MOD</div>
+				<div class="knob" data-param="envMod"></div>
+				<div class="knob-value"><span id="envModValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">DECAY</div>
+				<div class="knob" data-param="decay"></div>
+				<div class="knob-value"><span id="decayValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">ACCENT</div>
+				<div class="knob" data-param="accent"></div>
+				<div class="knob-value"><span id="accentValue"></span></div>
+			</div>
+		</div>
+		<div class="effects">
+			<div class="knob-container">
+				<div class="knob-label-top">DISTORTION</div>
+				<div class="knob" data-param="distortion"></div>
+				<div class="knob-value"><span id="distortionValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">REVERB</div>
+				<div class="knob" data-param="reverb"></div>
+				<div class="knob-value"><span id="reverbValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">DELAY</div>
+				<div class="knob" data-param="delay"></div>
+				<div class="knob-value"><span id="delayValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">COMPRESS</div>
+				<div class="knob" data-param="compression"></div>
+				<div class="knob-value"><span id="compressionValue"></span></div>
+			</div>
+			<div class="knob-container">
+				<div class="knob-label-top">TEMPO</div>
+				<div class="knob" data-param="tempo"></div>
+				<div class="knob-value"><span id="tempoValue"></span></div>
+			</div>
+			<div class="waveform-switch">
+				<div class="waveform-label">Waveform</div>
+				<select id="waveformSelect">
+					<option value="sawtooth">Sawtooth</option>
+					<option value="sine">Sine</option>
+					<option value="square">Square</option>
+					<option value="triangle">Triangle</option>
+				</select>
+			</div>
+		</div>
+        
+		<button id="toggleSequencer" class="button">Toggle Sequencer</button>
+		<div id="sequencer" class="hidden">
+		  <!-- Grid cells will be added here dynamically -->
+		</div>
+
+        <div class="button-container">
+            <button id="playBtn" class="button">Play</button>
+            <button id="stopBtn" class="button">Stop</button>
+            <button id="randomizeBtn" class="button">Randomize</button>
+        </div>
+    </div>
+
+    <script>
+        let audioContext;
+        let oscillator;
+        let filter;
+        let envelope;
+        let filterEnvelope;
+        let reverbNode;
+        let delayNode;
+        let distortionNode;
+		let compressor;
+		let  compressorMakeupGain;
+
+        const params = {
+            cutoff: 1000,
+            resonance: 5,
+            envMod: 0.5,
+            decay: 0.3,
+            accent: 0.5,
+            tempo: 120,
+            reverb: 0,
+            delay: 0,
+            distortion: 0,
+			compression: 0,
+            tuning: 50 // Default value (no tuning)
+        };
+
+		const maxDelayTime = 4;
+
+		function initAudio() {
+			// Create audio context
+			const contextOptions = {
+				sampleRate: 96000,
+				latencyHint: 'interactive'
+			};
+			
+			audioContext = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+			
+			console.log('Actual sample rate:', audioContext.sampleRate);
+
+			// Create and configure oscillator
+			oscillator = audioContext.createOscillator();
+			oscillator.type = 'sawtooth';
+
+			// Create and configure filter
+			filter = audioContext.createBiquadFilter();
+			filter.type = 'lowpass';
+
+			// Create envelopes
+			envelope = audioContext.createGain();
+			envelope.gain.setValueAtTime(0, audioContext.currentTime);
+			filterEnvelope = audioContext.createGain();
+			filterEnvelope.gain.setValueAtTime(0, audioContext.currentTime);
+
+			// Create effects
+			distortion = createDistortion();
+			delay = createDelay();
+			reverb = createReverb();
+
+			// Create compressor
+			compressor = audioContext.createDynamicsCompressor();
+			 compressorMakeupGain = audioContext.createGain();
+
+			// Create dry and wet gain nodes
+			const dryGain = audioContext.createGain();
+			const wetGain = audioContext.createGain();
+
+			// Connect the audio graph
+			oscillator.connect(filter);
+			filter.connect(distortion.input);
+			distortion.output.connect(envelope);
+			envelope.connect(compressor);
+			compressor.connect(compressorMakeupGain);
+			compressorMakeupGain.connect(dryGain);
+			compressorMakeupGain.connect(delay.input);
+			compressorMakeupGain.connect(reverb.input);
+
+			// Connect effects to wet output
+			delay.output.connect(wetGain);
+			reverb.output.connect(wetGain);
+
+			// Connect dry and wet outputs to destination
+			dryGain.connect(audioContext.destination);
+			wetGain.connect(audioContext.destination);
+
+			// Connect filter envelope
+			filterEnvelope.connect(filter.frequency);
+
+			// Start the oscillator
+			oscillator.start();
+
+			// Initialize knob values
+			document.querySelectorAll('.knob').forEach(knob => {
+				knob.angle = 0
+				updateSound(knob.dataset.param);
+			});
+		}
+
+        function updateSound(changedParam) {
+			if (!audioContext) return;
+			
+			const now = audioContext.currentTime;
+			
+			switch(changedParam) {
+				case 'cutoff':
+					filter.frequency.setTargetAtTime(params.cutoff, now, 0.01);
+					break;
+				case 'resonance':
+					filter.Q.setTargetAtTime(params.resonance, now, 0.01);
+					break;
+				case 'reverb':
+					if (reverb && reverb.updateReverb) {
+						reverb.updateReverb(params.reverb);
+					}
+					break;
+				case 'delay':
+					if (delay && delay.updateDelay) {
+						delay.updateDelay(params.delay);
+					}
+					break;
+				case 'distortion':
+					if (distortion && distortion.updateDistortion) {
+						distortion.updateDistortion(params.distortion);
+					}
+					break;
+				case 'compression':
+					if (compressor && compressor.threshold && compressor.ratio) {
+						const threshold = -50 + params.compression * 50; // -50 to 0
+						const ratio = 1 + params.compression * 39; // 1 to 40
+						const knee = 40 - params.compression * 39; // 40 to 1
+						const attack = 0.1 - params.compression * 0.095; // 0.1 to 0.005
+						const release = 0.5 - params.compression * 0.3; // 0.5 to 0.2
+						const makeupGain = params.compression * 20; // 0 to 20 dB
+
+						compressor.threshold.setTargetAtTime(threshold, now, 0.01);
+						compressor.ratio.setTargetAtTime(ratio, now, 0.01);
+						compressor.knee.setTargetAtTime(knee, now, 0.01);
+						compressor.attack.setTargetAtTime(attack, now, 0.01);
+						compressor.release.setTargetAtTime(release, now, 0.01);
+						compressorMakeupGain.gain.setTargetAtTime(Math.pow(10, makeupGain / 20), now, 0.01);
+						break;
+					}
+			}
+		}
+
+        function triggerNote(time, freq, accent) {
+			 const now = audioContext.currentTime;
+            const tuningFactor = Math.pow(2, (params.tuning - 50) / 50); // Convert percentage to octave shift
+            oscillator.frequency.setValueAtTime(freq * tuningFactor, time);
+			
+			const attackTime = 0.003;
+			const decayTime = params.decay;
+			const sustainLevel = accent ? 0.9 : 0.3;
+			
+			envelope.gain.cancelScheduledValues(time);
+			envelope.gain.setValueAtTime(0, time);
+			envelope.gain.linearRampToValueAtTime(1, time + attackTime);
+			envelope.gain.exponentialRampToValueAtTime(sustainLevel, time + attackTime + decayTime);
+			envelope.gain.setValueAtTime(sustainLevel, time + attackTime + decayTime);
+			envelope.gain.exponentialRampToValueAtTime(0.001, time + attackTime + decayTime + 0.1);
+			
+			const filterEnvAmount = params.envMod * 10000;
+			const filterBaseline = params.cutoff;
+			filter.frequency.cancelScheduledValues(time);
+			filter.frequency.setValueAtTime(filterBaseline, time);
+			filter.frequency.linearRampToValueAtTime(filterBaseline + filterEnvAmount, time + attackTime);
+			filter.frequency.exponentialRampToValueAtTime(filterBaseline, time + attackTime + decayTime);
+		}
+		
+		function createReverb() {
+			const convolver = audioContext.createConvolver();
+			const reverbGain = audioContext.createGain();
+			
+			function createImpulseResponse(duration) {
+				const sampleRate = audioContext.sampleRate;
+				const length = sampleRate * duration;
+				const impulse = audioContext.createBuffer(2, length, sampleRate);
+				const impulseL = impulse.getChannelData(0);
+				const impulseR = impulse.getChannelData(1);
+
+				for (let i = 0; i < length; i++) {
+					const t = i / sampleRate;
+					const decay = Math.exp(-t / (duration / 3));
+					impulseL[i] = (Math.random() * 2 - 1) * decay;
+					impulseR[i] = (Math.random() * 2 - 1) * decay;
+				}
+
+				return impulse;
+			}
+
+			convolver.buffer = createImpulseResponse(0.1); // Start with a small room size
+			
+			convolver.connect(reverbGain);
+			
+			return { 
+				input: convolver, 
+				output: reverbGain,
+				updateReverb: function(amount) {
+					// amount ranges from 0 to 1
+					const minDuration = 0.1; // 100ms for small room
+					const maxDuration = 5.0; // 5 seconds for large hall
+					const duration = minDuration + (maxDuration - minDuration) * amount;
+					convolver.buffer = createImpulseResponse(duration);
+				}
+			};
+		}
+		
+		function createDelay() {
+			const delay = audioContext.createDelay(4); // Maximum delay of 4 seconds
+			const feedback = audioContext.createGain();
+			const delayGain = audioContext.createGain();
+			
+			delay.delayTime.value = 0; // Initial delay time of 0 seconds
+			feedback.gain.value = 0.01; // Constant feedback amount
+			delayGain.gain.value = 0.5; // Constant output gain at 85%
+
+			delay.connect(feedback);
+			feedback.connect(delay);
+			delay.connect(delayGain);
+
+			return { 
+				input: delay, 
+				output: delayGain,
+				updateDelay: function(delayAmount) {
+					// delayAmount is expected to be between 0 and 1
+					const delayTime = delayAmount * maxDelayTime;
+					delay.delayTime.setTargetAtTime(delayTime, audioContext.currentTime, 0.01);
+				}
+			};
+		}
+
+		function createDistortion() {
+			const distortion = audioContext.createWaveShaper();
+			const distortionGain = audioContext.createGain();
+
+			function makeDistortionCurve(amount) {
+				const k = typeof amount === 'number' ? amount : 50;
+				const n_samples = 44100;
+				const curve = new Float32Array(n_samples);
+				const deg = Math.PI / 180;
+
+				for (let i = 0; i < n_samples; ++i) {
+					const x = i * 2 / n_samples - 1;
+					curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+				}
+				return curve;
+			}
+
+			distortion.curve = makeDistortionCurve(400);
+			distortion.oversample = '4x';
+
+			distortion.connect(distortionGain);
+
+			return { 
+				input: distortion, 
+				output: distortionGain,
+				updateDistortion: function(amount) {
+					distortion.curve = makeDistortionCurve(amount * 1000); // Increase the range of distortion
+					distortionGain.gain.setTargetAtTime(0.5 + amount * 0.5, audioContext.currentTime, 0.01);
+				}
+			};
+		}
+
+        let isPlaying = false;
+        let currentStep = 0;
+        let nextNoteTime = 0;
+
+        function scheduleNote() {
+            if (sequence[currentStep].active) {
+                const baseFreq = 110; // A2
+                const freq = baseFreq * Math.pow(2, sequence[currentStep].pitch / 12);
+                triggerNote(nextNoteTime, freq, params.accent > 0.5);
+            }
+            currentStep = (currentStep + 1) % 16;
+            const secondsPerBeat = 60.0 / params.tempo;
+            nextNoteTime += secondsPerBeat / 4; // 16th notes
+        }
+
+        let currentPlayingStep = -1;
+
+		function scheduler() {
+			while (nextNoteTime < audioContext.currentTime + 0.1) {
+				scheduleNote();
+			}
+			if (isPlaying) {
+				requestAnimationFrame(scheduler);
+			}
+		}
+
+        document.getElementById('playBtn').addEventListener('click', function() {
+			if (!audioContext) initAudio();
+			if (!isPlaying) {
+				isPlaying = true;
+				currentStep = 0;
+				nextNoteTime = audioContext.currentTime;
+
+				if (!oscillator) {
+					oscillator = audioContext.createOscillator();
+					oscillator.type = document.getElementById('waveformSelect').value;
+					oscillator.connect(filter);
+					oscillator.start();
+				}
+
+				scheduler();
+			}
+		});
+
+        document.getElementById('stopBtn').addEventListener('click', function() {
+			isPlaying = false;
+			document.querySelectorAll('.sequencer-cell').forEach(cell => {
+				cell.classList.remove('current');
+			});
+			if (audioContext && oscillator) {
+				oscillator.stop();
+				oscillator.disconnect();
+				oscillator = null;
+			}
+		});
+
+
+        document.getElementById('randomizeBtn').addEventListener('click', randomizeSequence);
+
+		function updateKnobValue(e, knob) {
+			const rect = knob.getBoundingClientRect();
+			const centerX = rect.left + rect.width / 2;
+			const centerY = rect.top + rect.height / 2;
+			let angle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+			
+			// Convert angle to degrees (0 to 360)
+			let degree = (angle * 180 / Math.PI + 360) % 360;
+			
+			// Adjust to make 0 degrees point upwards
+			degree = (degree + 90) % 360;
+
+			// Initialize previousDegree if it doesn't exist
+			if (typeof knob.previousDegree === 'undefined') {
+				knob.previousDegree = degree;
+			}
+
+			// Calculate the change in angle
+			let deltaDegree = degree - knob.previousDegree;
+
+			// Adjust for the case when crossing 0/360 boundary
+			if (deltaDegree > 180) {
+				deltaDegree -= 360;
+			} else if (deltaDegree < -180) {
+				deltaDegree += 360;
+			}
+
+			// Determine rotation direction
+			const isClockwise = deltaDegree > 0;
+
+			// Get current angle (or initialize to 0 if not set)
+			let currentAngle = knob.angle || 0;
+
+			// Update the angle based on direction and current position
+			if (isClockwise && currentAngle < 270) {
+				currentAngle = Math.min(270, currentAngle + Math.abs(deltaDegree));
+			} else if (!isClockwise && currentAngle > 0) {
+				currentAngle = Math.max(0, currentAngle - Math.abs(deltaDegree));
+			}
+
+			// Update the knob's angle
+			knob.angle = currentAngle;
+
+			// Update the previous degree for the next interaction
+			knob.previousDegree = degree;
+
+			const param = knob.dataset.param;
+			const value = currentAngle / 270;
+			
+			// Update display value
+			let displayValue;
+			switch (param) {
+				case 'tuning':
+					params[param] = Math.round(value * 100);
+					displayValue = params[param] + '%';
+					break;
+				case 'cutoff':
+					params[param] = value * 15000 + 20;
+					displayValue = Math.round(params[param]) + ' Hz';
+					break;
+				case 'resonance':
+					params[param] = value * 29 + 1;
+					displayValue = (params[param]).toFixed(1);
+					break;
+				case 'envMod':
+					params[param] = value;
+					displayValue = (params[param]).toFixed(2);
+					break;
+				case 'accent':
+					params[param] = value;
+					displayValue = (params[param]).toFixed(2);
+					break;
+				case 'decay':
+					params[param] = value * 2;
+					displayValue = (params[param]).toFixed(2) + ' s';
+					break;
+				case 'tempo':
+					params[param] = Math.round(value * 240 + 60);
+					displayValue = Math.round(params[param]) + ' BPM';
+					break;
+				case 'reverb':
+					params[param] = value;
+					displayValue = (params[param] * 100).toFixed(0) + '%';
+					break;
+				case 'distortion':
+					params[param] = value;
+					displayValue = (params[param] * 100).toFixed(0) + '%';
+					break;
+				case 'delay':
+					params[param] = value * maxDelayTime
+					displayValue = Math.round(params[param] * 1000) + ' ms';
+					break;
+				case 'compression':
+					params[param] = value;
+					displayValue = (params[param] * 100).toFixed(0) + '%';
+					break;
+			}
+			
+			document.getElementById(`${param}Value`).textContent = displayValue;
+			knob.style.transform = `rotate(${currentAngle}deg)`;
+			updateSound(param);
+
+		}
+
+
+        document.querySelectorAll('.knob').forEach(knob => {
+            let isDragging = false;
+			
+            knob.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                updateKnobValue(e, knob);
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (isDragging) {
+                    updateKnobValue(e, knob);
+                }
+            });
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+        });
+
+        // Initialize knob values
+        document.querySelectorAll('.knob').forEach(knob => {
+            const param = knob.dataset.param;
+            const value = params[param];
+            let maxValue, minValue, unit = '';
+
+            switch (param) {
+                case 'tempo':
+                    maxValue = 300;
+                    minValue = 60;
+                    unit = ' BPM';
+                    break;
+                case 'cutoff':
+                    maxValue = 15020;
+                    minValue = 20;
+                    unit = ' Hz';
+                    break;
+                case 'resonance':
+                    maxValue = 30;
+                    minValue = 1;
+                    break;
+                case 'decay':
+                    maxValue = 2;
+                    minValue = 0;
+                    unit = ' s';
+                    break;
+                case 'tuning':
+                    maxValue = 100;
+                    minValue = 0;
+                    unit = '%';
+                    break;
+				case 'compression':
+					maxValue = 1;
+					minValue = 0;
+					unit = '';
+					break;
+                default:
+                    maxValue = 1;
+                    minValue = 0;
+            }
+
+			const degree = ((value - minValue) / (maxValue - minValue)) * 270;
+			knob.style.transform = `rotate(${degree}deg)`;
+            document.getElementById(`${param}Value`).textContent = value + unit;
+        });
+
+        // Waveform selection
+        document.getElementById('waveformSelect').addEventListener('change', function(e) {
+            if (oscillator) {
+                oscillator.type = e.target.value;
+            }
+        });
+
+		
+		// SEQUENCER
+		const sequencer = document.getElementById('sequencer');
+		const toggleBtn = document.getElementById('toggleSequencer');
+		const sequence = Array(16).fill().map(() => ({ active: false, pitch: -1 }));
+
+		// Initialize the sequencer grid after the DOM has loaded
+		document.addEventListener('DOMContentLoaded', () => {
+			console.log('DOM fully loaded. Creating sequencer grid...');
+			// Create grid
+			for (let i = 0; i < 12; i++) {
+			for (let j = 0; j < 16; j++) {
+				const cell = document.createElement('div');
+				cell.classList.add('sequencer-cell');
+				cell.dataset.step = j;
+				cell.dataset.pitch = 11 - i; // Reverse pitch so higher notes are at the top
+				cell.addEventListener('click', toggleCell);
+				sequencer.appendChild(cell);
+			}
+			}
+			console.log('Sequencer grid created.');
+		});
+
+		function toggleCell(e) {
+			const step = parseInt(e.target.dataset.step);
+			const pitch = parseInt(e.target.dataset.pitch);
+			
+			if (e.target.classList.contains('active')) {
+				// If the cell is already active, deactivate it
+				e.target.classList.remove('active');
+				sequence[step].active = false;
+				sequence[step].pitch = -1;
+			} else {
+				// If the cell is not active, activate it and deactivate others in the same column
+				document.querySelectorAll(`.sequencer-cell[data-step="${step}"]`).forEach(cell => {
+					cell.classList.remove('active');
+				});
+				e.target.classList.add('active');
+				sequence[step].active = true;
+				sequence[step].pitch = pitch;
+			}
+		}
+
+		toggleBtn.addEventListener('click', () => {
+		  console.log('Toggle button clicked');
+		  sequencer.classList.toggle('hidden');
+		  console.log('Sequencer hidden state:', sequencer.classList.contains('hidden'));
+		});
+
+		// Update existing play functions to use this new sequence data
+		function scheduleNote() {
+			if (sequence[currentStep].active) {
+				const baseFreq = 110; // A2
+				const freq = baseFreq * Math.pow(2, sequence[currentStep].pitch / 12);
+				triggerNote(nextNoteTime, freq, params.accent > 0.5);
+			}
+			
+			// Schedule the UI update
+			const updateTime = nextNoteTime - audioContext.currentTime;
+			setTimeout(() => updateStepHighlight(currentStep), updateTime * 1000);
+
+			currentStep = (currentStep + 1) % 16;
+			const secondsPerBeat = 60.0 / params.tempo;
+			nextNoteTime += secondsPerBeat / 4; // 16th notes
+		}
+		
+		function updateStepHighlight(step) {
+			document.querySelectorAll('.sequencer-cell').forEach((cell) => {
+				cell.classList.remove('current');
+			});
+			
+			document.querySelectorAll(`.sequencer-cell[data-step="${step}"]`).forEach((cell) => {
+				cell.classList.add('current');
+			});
+		}
+
+		// randomize the sequence
+		function randomizeSequence() {
+		  sequence.forEach((step, index) => {
+			step.active = Math.random() < 0.5;
+			step.pitch = step.active ? Math.floor(Math.random() * 12) : -1;
+			
+			const activeCell = document.querySelector(`.sequencer-cell[data-step="${index}"][data-pitch="${step.pitch}"]`);
+			if (activeCell) {
+			  activeCell.classList.add('active');
+			}
+			
+			document.querySelectorAll(`.sequencer-cell[data-step="${index}"]`).forEach(cell => {
+			  if (cell !== activeCell) {
+				cell.classList.remove('active');
+			  }
+			});
+		  });
+		}
+				
+		
+    </script>
+</body>
+</html>
